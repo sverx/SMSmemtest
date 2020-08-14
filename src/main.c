@@ -1,10 +1,11 @@
 
 #define MAJ_VERSION  0
-#define MIN_VERSION  1
+#define MIN_VERSION  20
 
 #include <stdio.h>
 #include "../SMSlib/SMSlib.h"
 
+/* ********************************************************************* */
 #pragma save
 #pragma disable_warning 85
 unsigned char ram_test (unsigned char value) __z88dk_fastcall __naked {
@@ -125,6 +126,113 @@ _check_failed_2:
   __endasm;
 }
 
+/* ********************************************************************* */
+#pragma save
+#pragma disable_warning 85
+unsigned char vram_test (unsigned char value) __z88dk_fastcall __naked {
+  __asm
+    ld a,l             ; get value to write and read
+    ld hl,#0x4000      ; start of VRAM (write)
+    rst #0x08          ; write VDP control port
+    ld bc,#0x00BE      ; B = 0 and C = #0xBE (VDP data port)
+    ld l,#64           ; 64 by 256 = 16 KB
+
+_write_loop_vram:
+    out (c),a
+    djnz _write_loop_vram
+    dec l
+    jr nz,_write_loop_vram
+
+// put a long delay after the write, so that if any bit changes we can get it
+
+    ld bc,#0x0000      ; longest delay I can imagine ;)
+_delay_loop_vram:
+    .db #0xFD
+    ld l,a             ; ld iyl,a since this is a pretty slow operation
+    .db #0xFD
+    ld l,a             ; ld iyl,a since this is a pretty slow operation
+    .db #0xFD
+    ld l,a             ; ld iyl,a since this is a pretty slow operation
+
+    djnz _delay_loop_vram
+    dec c
+    jr nz,_delay_loop_vram
+
+    ld hl,#0x0000      ; start of VRAM (read)
+    rst #0x08          ; write VDP control port
+    ld bc,#0x00BE      ; B = 0 and C = #0xBE (VDP data port)
+    ld l,#64           ; 64 by 256 = 16 KB
+
+_read_loop_vram:
+    in h,(c)
+    cp h               ; compare with written value
+    jr nz,_check_failed_vram
+    djnz _read_loop_vram
+    dec l
+    jr nz,_read_loop_vram
+
+    ld l,#0
+    ret
+
+_check_failed_vram:
+    ld l,#1
+    ret
+  __endasm;
+}
+#pragma restore
+
+unsigned char vram_test_2 (void) __naked {
+  __asm
+    ld hl,#0x4000      ; start of VRAM (write)
+    rst #0x08          ; write VDP control port
+    ld bc,#0x00BE      ; B = 0 and C = #0xBE (VDP data port)
+    ld hl,#64          ; H = 0, L = 64 (64 by 256 = 16 KB)
+
+_write_loop_vram_2:
+    out (c),h
+    inc h
+    djnz _write_loop_vram_2
+    dec l
+    jr nz,_write_loop_vram_2
+
+// put a long delay after the write, so that if any bit changes we can get it
+
+    ld bc,#0x0000      ; longest delay I can imagine ;)
+_delay_loop_vram_2:
+    .db #0xFD
+    ld l,a             ; ld iyl,a since this is a pretty slow operation
+    .db #0xFD
+    ld l,a             ; ld iyl,a since this is a pretty slow operation
+    .db #0xFD
+    ld l,a             ; ld iyl,a since this is a pretty slow operation
+
+    djnz _delay_loop_vram_2
+    dec c
+    jr nz,_delay_loop_vram_2
+
+    ld hl,#0x0000      ; start of VRAM (read)
+    rst #0x08          ; write VDP control port
+    ld bc,#0x00BE      ; B = 0 and C = #0xBE (VDP data port)
+    ld hl,#64          ; H = 0, L = 64 (64 by 256 = 16 KB)
+
+_read_loop_vram_2:
+    in a,(c)
+    cp h               ; compare with written value
+    jr nz,_check_failed_vram_2
+    inc h
+    djnz _read_loop_vram_2
+    dec l
+    jr nz,_read_loop_vram_2
+    ld l,#0
+    ret
+
+_check_failed_vram_2:
+    ld l,#1
+    ret
+  __endasm;
+}
+
+/* ********************************************************************* */
 void print_test_result (unsigned char failed) {
   if (failed) {
     SMS_configureTextRenderer(-32+96*2);    // set text to RED
@@ -136,10 +244,10 @@ void print_test_result (unsigned char failed) {
   SMS_configureTextRenderer(-32);           // restore text to white
 }
 
-extern const unsigned char devkitSMS_font__tiles__1bpp[768];
-
-void main (void) {
-  SMS_VRAMmemset (XYtoADDR(0,0),0,32*24);                               // clear PNT
+void init_display (void) {
+  extern const unsigned char devkitSMS_font__tiles__1bpp[768];
+  SMS_displayOff();
+  SMS_VRAMmemset (XYtoADDR(0,0),0,32*28*2);                             // clear PNT
   SMS_load1bppTiles(devkitSMS_font__tiles__1bpp,0,sizeof(devkitSMS_font__tiles__1bpp),0,1);
   SMS_load1bppTiles(devkitSMS_font__tiles__1bpp,96,sizeof(devkitSMS_font__tiles__1bpp),0,2);
   SMS_load1bppTiles(devkitSMS_font__tiles__1bpp,96*2,sizeof(devkitSMS_font__tiles__1bpp),0,3);
@@ -148,10 +256,26 @@ void main (void) {
   SMS_setBGPaletteColor (2, RGB(0,3,0));        // green
   SMS_setBGPaletteColor (3, RGB(3,0,0));        // red
   SMS_configureTextRenderer(-32);
+  SMS_initSprites();
+  SMS_copySpritestoSAT();
   SMS_displayOn();
-
   SMS_setNextTileatXY (1,1);
   printf ("sverx's SMS memtest v%d.%02d",MAJ_VERSION,MIN_VERSION);
+}
+
+void init_display_vram_tests (void) {
+  init_display();
+  SMS_setNextTileatXY (1,3);
+  printf ("Testing system VIDEO RAM:");
+  SMS_setNextTileatXY (1,4);
+}
+
+void main (void) {
+
+  init_display();
+
+/* *** RAM tests ******************************************************* */
+
   SMS_setNextTileatXY (1,3);
   printf ("Testing system RAM:");
   SMS_setNextTileatXY (1,4);
@@ -174,8 +298,57 @@ void main (void) {
   printf ("-different values...");
   print_test_result (ram_test_2 ());
 
+  // more tests here!
+
   SMS_setNextTileatXY (1,10);
   printf ("RAM tests completed");
+
+  SMS_setNextTileatXY (1,12);
+  printf ("Press any controller button");
+  SMS_setNextTileatXY (1,13);
+  printf ("to start VIDEO RAM tests");
+  SMS_setNextTileatXY (1,14);
+  printf ("(screen will be off a few secs)");
+
+  while (!(SMS_getKeysPressed() & (PORT_A_KEY_UP|PORT_A_KEY_DOWN|PORT_A_KEY_LEFT|PORT_A_KEY_RIGHT|PORT_A_KEY_1|PORT_A_KEY_2|
+                                   PORT_B_KEY_UP|PORT_B_KEY_DOWN|PORT_B_KEY_LEFT|PORT_B_KEY_RIGHT|PORT_B_KEY_1|PORT_B_KEY_2)));    // wait for any key press
+
+
+/* *** VIDEO RAM tests ************************************************* */
+
+  SMS_displayOff();
+
+  if (vram_test(0x00)) {                             // notify if this test failed
+    init_display_vram_tests();
+    printf ("-all bits to zero...");
+    print_test_result(1);
+  } else if (vram_test(0xFF)) {                      // notify if this test failed
+    init_display_vram_tests();
+    printf ("-all bits to one ...");
+    print_test_result(1);
+  } else if (vram_test(0x55)) {                      // notify if this test failed
+    init_display_vram_tests();
+    printf ("-all bytes to $55...");
+    print_test_result(1);
+  } else if (vram_test(0xAA)) {                      // notify if this test failed
+    init_display_vram_tests();
+    printf ("-all bytes to $AA...");
+    print_test_result(1);
+  } else if (vram_test_2()) {                        // notify if this test failed
+    init_display_vram_tests();
+    printf ("-different values...");
+    print_test_result(1);
+
+  // more tests here!
+
+  } else {                                           // notify all tests were OK!
+    init_display_vram_tests();
+    printf ("-all tests       ...");
+    print_test_result(0);
+
+    SMS_setNextTileatXY (1,10);
+    printf ("VIDEO RAM tests completed");
+  }
 
   for (;;);
 
