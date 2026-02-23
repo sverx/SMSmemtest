@@ -1,6 +1,6 @@
 
 #define MAJ_VERSION  0
-#define MIN_VERSION  30
+#define MIN_VERSION  31
 
 #include <stdio.h>
 #include "../SMSlib/SMSlib.h"
@@ -397,14 +397,24 @@ void init_display_vram_tests (void) {
   SMS_setNextTileatXY (1,4);
 }
 
+void wait_start (void) {
+  SMS_setNextTileatXY (1,3);
+  printf ("Press any button to start");
+  SMS_VDPturnOnFeature(VDPFEATURE_FRAMEIRQ);
+  while (!(SMS_getKeysPressed() & (PORT_A_KEY_UP|PORT_A_KEY_DOWN|PORT_A_KEY_LEFT|PORT_A_KEY_RIGHT|PORT_A_KEY_1|PORT_A_KEY_2|
+                                   PORT_B_KEY_UP|PORT_B_KEY_DOWN|PORT_B_KEY_LEFT|PORT_B_KEY_RIGHT|PORT_B_KEY_1|PORT_B_KEY_2)));    // wait for any key press
+  SMS_VDPturnOffFeature(VDPFEATURE_FRAMEIRQ);
+}
+
 void main (void) {
 
   init_display();
+  wait_start();
 
 /* *** RAM tests ******************************************************* */
 
   SMS_setNextTileatXY (1,3);
-  printf ("Testing system RAM:");
+  printf ("Testing system RAM:        ");
   SMS_setNextTileatXY (1,4);
   printf ("-all bits to zero...");
   print_test_result (ram_test (0x00));
