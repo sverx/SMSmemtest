@@ -1,12 +1,14 @@
 
 #define MAJ_VERSION  0
-#define MIN_VERSION  31
+#define MIN_VERSION  40
 
 #include <stdio.h>
 #include "../SMSlib/SMSlib.h"
 
 extern volatile unsigned int KeysStatus,PreviousKeysStatus;
 extern unsigned char VDPReg[2];
+
+unsigned char dead_ram_test_array[16];
 
 /* ********************************************************************* */
 #pragma save
@@ -31,12 +33,14 @@ _write_loop:
 
     ld bc,#0x0000      ; longest delay I can imagine ;)
 _delay_loop:
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
 
     djnz _delay_loop
     dec c
@@ -72,17 +76,20 @@ _check_failed:
 }
 #pragma restore
 
-unsigned char ram_test_2 (void) __z88dk_fastcall __naked {
+unsigned char ram_test_2 (unsigned char incr_value) __z88dk_fastcall __naked {
   __asm
     di
-    pop de             ; get ret address from stack
-    ld a,l             ; get value to write and read
+    pop iy             ; get ret address from stack
+    ld e,l             ; get incr_value
+    xor a              ; start from 0
     ld hl,#0xC000      ; start of RAM
     ld bc,#0x0020      ; 32 times 256 bytes = 8 KB
 
+
 _write_loop_2:
-    ld (hl),l
+    ld (hl),a
     inc hl
+    add a,e
     djnz _write_loop_2
 
     dec c
@@ -92,12 +99,14 @@ _write_loop_2:
 
     ld bc,#0x0000      ; longest delay I can imagine ;)
 _delay_loop_2:
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
 
     djnz _delay_loop_2
     dec c
@@ -105,25 +114,26 @@ _delay_loop_2:
 
     ld hl,#0xC000      ; start of RAM
     ld bc,#0x0020      ; 32 times 256 bytes = 8 KB
+    xor a              ; start from 0
 
 _read_loop_2:
-    ld a,(hl)
-    cp l               ; compare with value in l
+    cp (hl)            ; compare with value in memory
     jr nz,_check_failed_2
     inc hl
+    add a,e
     djnz _read_loop_2
 
     dec c
     jr nz,_read_loop_2
 
     ld l,#0
-    push de            ; restore ret address into stack
+    push iy            ; restore ret address into stack
     ei
     ret
 
 _check_failed_2:
     ld l,#1
-    push de            ; restore ret address into stack
+    push iy            ; restore ret address into stack
     ei
     ret
   __endasm;
@@ -150,12 +160,14 @@ _write_loop_vram:
 
     ld bc,#0x0000      ; longest delay I can imagine ;)
 _delay_loop_vram:
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
 
     djnz _delay_loop_vram
     dec c
@@ -202,12 +214,14 @@ _write_loop_vram_2:
 
     ld bc,#0x0000      ; longest delay I can imagine ;)
 _delay_loop_vram_2:
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
 
     djnz _delay_loop_vram_2
     dec c
@@ -259,12 +273,14 @@ _write_loop_3:
 
     ld bc,#0x0000      ; longest delay I can imagine ;)
 _delay_loop_3:
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
 
     djnz _delay_loop_3
     dec c
@@ -320,12 +336,14 @@ _write_loop_4:
 
     ld bc,#0x0000      ; longest delay I can imagine ;)
 _delay_loop_4:
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
-    .db #0xFD
-    ld l,a             ; ld iyl,a since this is a pretty slow operation
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
 
     djnz _delay_loop_4
     dec c
@@ -406,7 +424,48 @@ void wait_start (void) {
   SMS_VDPturnOffFeature(VDPFEATURE_FRAMEIRQ);
 }
 
+void quick_dead_ram_test (void) {
+  // quick test to ensure at least some of the RAM is present and works, otherwise let's stop here and turn the screen red
+  unsigned char i;
+  for (i=0;i<sizeof(dead_ram_test_array);i++)
+    dead_ram_test_array[i]=i;
+  for (i=0;i<sizeof(dead_ram_test_array);i++) {
+    if (dead_ram_test_array[i]!=i) {
+      // initialize mode 4 with display off, set backdrop to color 0, set sprite palette color 0 to red
+      __asm
+        ld c,#0xBF
+
+        ld de,#0x8004
+        out (c),e
+        out (c),d
+
+        ld de,#0x8120
+        out (c),e
+        out (c),d
+
+        ld de,#0x8700
+        out (c),e
+        out (c),d
+
+        ld de,#0xC010
+        out (c),e
+        out (c),d
+
+        ld a,#0x03
+        dec c
+        out (c),a
+      __endasm;
+
+      for (;;);  // the RAM is toast - lock the program here
+    }
+  }
+}
+
 void main (void) {
+
+  quick_dead_ram_test();   // this is effective when the RAM isn't present at all or completely toast
+
+  SMS_init();              // as we had this call removed from our custom crt0, we must call this now after the quick dead test
 
   init_display();
   wait_start();
@@ -433,18 +492,26 @@ void main (void) {
 
   SMS_setNextTileatXY (1,8);
   printf ("-different values...");
-  print_test_result (ram_test_2 ());
+  print_test_result (ram_test_2 (1));
+
+  SMS_setNextTileatXY (1,9);
+  printf ("-different values...");
+  print_test_result (ram_test_2 (19));  // prime = 0x13
+
+  SMS_setNextTileatXY (1,10);
+  printf ("-different values...");
+  print_test_result (ram_test_2 (71));  // prime = 0x47
 
   // more tests here!
 
-  SMS_setNextTileatXY (1,10);
+  SMS_setNextTileatXY (1,12);
   printf ("RAM tests completed");
 
-  SMS_setNextTileatXY (1,12);
-  printf ("Press any controller button");
-  SMS_setNextTileatXY (1,13);
-  printf ("to start VIDEO RAM tests");
   SMS_setNextTileatXY (1,14);
+  printf ("Press any controller button");
+  SMS_setNextTileatXY (1,15);
+  printf ("to start VIDEO RAM tests");
+  SMS_setNextTileatXY (1,16);
   printf ("(screen will be off a few secs)");
 
   KeysStatus=0;
